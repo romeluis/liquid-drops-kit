@@ -208,7 +208,14 @@ public final class LiquidDrops: ObservableObject {
 
     public func show(_ drop: LiquidDrop) {
         queue.append(drop)
-        presentNextIfNeeded()
+        guard let currentDrop else {
+            presentNextIfNeeded()
+            return
+        }
+
+        if hideTask == nil {
+            hide(dropID: currentDrop.id, animated: true, bypassQueueDelay: true)
+        }
     }
 
     public func hideCurrent() {
@@ -256,7 +263,7 @@ public final class LiquidDrops: ObservableObject {
         }
     }
 
-    private func hide(dropID: UUID, animated: Bool) {
+    private func hide(dropID: UUID, animated: Bool, bypassQueueDelay: Bool = false) {
         guard let currentDrop, currentDrop.id == dropID else { return }
 
         autoHideTask?.cancel()
@@ -286,7 +293,9 @@ public final class LiquidDrops: ObservableObject {
             self.currentDrop = nil
             self.didDismissDrop?(stillCurrent)
 
-            try? await Task.sleep(for: .seconds(self.delayBetweenDrops))
+            if !bypassQueueDelay {
+                try? await Task.sleep(for: .seconds(self.delayBetweenDrops))
+            }
             guard !Task.isCancelled else { return }
             self.presentNextIfNeeded()
         }
