@@ -282,6 +282,7 @@ private struct LiquidDropsHostModifier: ViewModifier {
 }
 
 private struct LiquidDropsOverlay: View {
+    @Environment(\.colorScheme) private var colorScheme
     @ObservedObject var drops: LiquidDrops
     @State private var dragOffset: CGFloat = 0
     @State private var isGestureDismissing = false
@@ -301,8 +302,14 @@ private struct LiquidDropsOverlay: View {
                         islandBeatHapticsTask = nil
                     }
                     .task(id: drop.id) {
-                        updateAdaptiveForeground(for: drop, safeArea: proxy.safeAreaInsets, canvasSize: proxy.size)
                         scheduleIslandBeatHaptics(for: drop, canvasSize: proxy.size)
+                        for attempt in 0..<6 {
+                            guard drops.currentDrop?.id == drop.id else { break }
+                            updateAdaptiveForeground(for: drop, safeArea: proxy.safeAreaInsets, canvasSize: proxy.size)
+                            if attempt < 5 {
+                                try? await Task.sleep(for: .milliseconds(120))
+                            }
+                        }
                     }
             }
         }
@@ -334,6 +341,7 @@ private struct LiquidDropsOverlay: View {
                     .readSize { size in
                         guard size.width > 0, size.height > 0 else { return }
                         topCardBaseSize = size
+                        updateAdaptiveForeground(for: drop, safeArea: safeArea, canvasSize: canvasSize)
                     }
                     .scaleEffect(
                         x: topScale(for: t, islandFrame: islandFrame, cardSize: topCardBaseSize).width,
@@ -352,6 +360,11 @@ private struct LiquidDropsOverlay: View {
             VStack(spacing: 0) {
                 Spacer(minLength: 0)
                 card(for: drop)
+                    .readSize { size in
+                        guard size.width > 0, size.height > 0 else { return }
+                        topCardBaseSize = size
+                        updateAdaptiveForeground(for: drop, safeArea: safeArea, canvasSize: canvasSize)
+                    }
                     .padding(.bottom, bottomInset + 8)
                     .offset(y: lerp(from: 170, to: 0, t: drops.visibility) + dragOffset)
                     .shadow(color: .black.opacity(0.18), radius: 20, y: 9)
@@ -551,23 +564,53 @@ private struct LiquidDropsOverlay: View {
         let topInset = resolvedTopInset(from: safeArea)
         let bottomInset = resolvedBottomInset(from: safeArea)
 
-        let samplePoint: CGPoint
-        switch drop.position {
-        case .top:
-            samplePoint = CGPoint(x: canvasSize.width * 0.5, y: topInset + 40)
-        case .bottom:
-            samplePoint = CGPoint(x: canvasSize.width * 0.5, y: canvasSize.height - bottomInset - 40)
-        }
+        let points = adaptiveSamplePoints(
+            for: drop,
+            topInset: topInset,
+            bottomInset: bottomInset,
+            canvasSize: canvasSize
+        )
+        let luminances = points.compactMap(sampleWindowLuminance(at:))
 
-        guard let luminance = sampleWindowLuminance(at: samplePoint) else {
-            adaptiveForeground = .white
+        guard !luminances.isEmpty else {
+            adaptiveForeground = fallbackAdaptiveForeground
             return
         }
 
+        let luminance = luminances.reduce(0, +) / CGFloat(luminances.count)
         let resolvedColor: Color = luminance > 0.58 ? .black : .white
         withAnimation(.easeInOut(duration: 0.18)) {
             adaptiveForeground = resolvedColor
         }
+    }
+
+    private func adaptiveSamplePoints(
+        for drop: LiquidDrop,
+        topInset: CGFloat,
+        bottomInset: CGFloat,
+        canvasSize: CGSize
+    ) -> [CGPoint] {
+        let centerX = canvasSize.width * 0.5
+        let offsetX = min(max(canvasSize.width * 0.18, 24), 52)
+        let estimatedHeight = max(topCardBaseSize.height, drop.subtitle == nil ? 56 : 64)
+
+        let sampleY: CGFloat
+        switch drop.position {
+        case .top:
+            sampleY = topInset + 8 + estimatedHeight + 14
+        case .bottom:
+            sampleY = canvasSize.height - bottomInset - 8 - estimatedHeight - 14
+        }
+
+        return [
+            CGPoint(x: centerX - offsetX, y: sampleY),
+            CGPoint(x: centerX, y: sampleY),
+            CGPoint(x: centerX + offsetX, y: sampleY)
+        ]
+    }
+
+    private var fallbackAdaptiveForeground: Color {
+        colorScheme == .light ? .black : .white
     }
 
     private func sampleWindowLuminance(at point: CGPoint) -> CGFloat? {
