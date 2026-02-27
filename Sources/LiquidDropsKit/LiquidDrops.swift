@@ -213,9 +213,7 @@ public final class LiquidDrops: ObservableObject {
             return
         }
 
-        if hideTask == nil {
-            hide(dropID: currentDrop.id, animated: true, bypassQueueDelay: true)
-        }
+        hide(dropID: currentDrop.id, animated: true, bypassQueueDelay: true)
     }
 
     public func hideCurrent() {
