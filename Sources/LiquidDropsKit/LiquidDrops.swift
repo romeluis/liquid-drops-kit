@@ -373,7 +373,7 @@ private struct LiquidDropsOverlay: View {
     @State private var dragOffset: CGFloat = 0
     @State private var isGestureDismissing = false
     @State private var islandBeatHapticsTask: Task<Void, Never>?
-    @State private var adaptiveForeground: Color = .white
+    @State private var adaptiveForeground: Color = .primary
     @State private var topCardBaseSize: CGSize = CGSize(width: 280, height: 56)
 
     var body: some View {
