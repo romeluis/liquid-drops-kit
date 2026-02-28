@@ -4,7 +4,7 @@ Liquid-glass toast notifications for SwiftUI.
 
 ## Requirements
 
-- iOS 26.0+
+- iOS 18.0+
 - Xcode 16+
 
 ## Installation (Xcode)

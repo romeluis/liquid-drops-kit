@@ -2,7 +2,6 @@ import SwiftUI
 import Combine
 import UIKit
 
-@MainActor
 public struct LiquidDrop: Identifiable, ExpressibleByStringLiteral {
     public init(
         title: String,
@@ -257,7 +256,7 @@ public final class LiquidDrops: ObservableObject {
         autoHideTask = Task { [weak self] in
             try? await Task.sleep(for: .seconds(duration))
             guard !Task.isCancelled else { return }
-            await self?.hide(dropID: currentDrop.id, animated: true)
+            self?.hide(dropID: currentDrop.id, animated: true)
         }
     }
 
@@ -778,20 +777,25 @@ private struct LiquidDropsOverlay: View {
         .padding(.vertical, drop.subtitle == nil ? 14 : 10)
         .padding(.horizontal, 14)
         .background {
-            if drop.effectStyle == .clear {
-                shape
-                    .fill(.clear)
-                    .glassEffect(
-                        .clear.tint((drop.glassTint ?? .cyan).opacity(0.14)),
-                        in: shape
-                    )
+            if #available(iOS 26, *) {
+                if drop.effectStyle == .clear {
+                    shape
+                        .fill(.clear)
+                        .glassEffect(
+                            .clear.tint((drop.glassTint ?? .cyan).opacity(0.14)),
+                            in: shape
+                        )
+                } else {
+                    shape
+                        .fill(.clear)
+                        .glassEffect(
+                            .regular.tint((drop.glassTint ?? .cyan).opacity(0.2)),
+                            in: shape
+                        )
+                }
             } else {
                 shape
-                    .fill(.clear)
-                    .glassEffect(
-                        .regular.tint((drop.glassTint ?? .cyan).opacity(0.2)),
-                        in: shape
-                    )
+                    .fill(.ultraThinMaterial)
             }
         }
         .fixedSize(horizontal: true, vertical: false)
@@ -905,7 +909,7 @@ private struct LiquidDropBubblePreview: View {
 
     var body: some View {
         ZStack {
-            Color.black
+            Color.white
             .ignoresSafeArea()
 
             LiquidDropsOverlay(drops: drops)
