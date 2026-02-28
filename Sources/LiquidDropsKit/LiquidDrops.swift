@@ -8,15 +8,15 @@ public struct LiquidDrop: Identifiable, ExpressibleByStringLiteral {
         title: String,
         titleNumberOfLines: Int = 1,
         subtitle: String? = nil,
-        subtitleNumberOfLines: Int = 1,
+        subtitleNumberOfLines: Int = 2,
         icon: UIImage? = nil,
         action: Action? = nil,
         position: Position = .top,
-        duration: Duration = .recommended,
-        animationStyle: AnimationStyle = .default,
+        duration: Duration = .seconds(3),
+        animationStyle: AnimationStyle = .init(coming: .snappy, going: .smooth),
         accessibility: Accessibility? = nil,
-        effectStyle: EffectStyle = .regular,
-        glassTint: Color? = nil
+        effectStyle: EffectStyle = .clear,
+        glassTint: Color? = .clear
     ) {
         let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
         self.id = UUID()
@@ -304,9 +304,9 @@ public final class LiquidDrops: ObservableObject {
         case .spring:
             return .spring(duration: 0.72, bounce: 0.15)
         case .snappy:
-            return .snappy(duration: 0.44, extraBounce: 0.12)
+            return .snappy(duration: 0.4, extraBounce: 0.12)
         case .bouncy:
-            return .bouncy(duration: 0.7, extraBounce: 0.18)
+            return .bouncy(duration: 0.4, extraBounce: 0.18)
         case .smooth:
             return .smooth(duration: 0.45)
         case .easeInOut:
@@ -743,11 +743,11 @@ private struct LiquidDropsOverlay: View {
                     .foregroundStyle(adaptiveForeground)
             }
 
-            VStack(spacing: drop.subtitle == nil ? 0 : 2) {
+            VStack(alignment: .leading, spacing: drop.subtitle == nil ? 0 : 2) {
                 Text(drop.title)
                     .font(.system(size: 16, weight: .semibold, design: .rounded))
                     .lineLimit(drop.titleNumberOfLines)
-                    .multilineTextAlignment(.center)
+                    .multilineTextAlignment(.leading)
                     .foregroundStyle(adaptiveForeground)
 
                 if let subtitle = drop.subtitle {
@@ -755,9 +755,10 @@ private struct LiquidDropsOverlay: View {
                         .font(.system(size: 14, weight: .regular, design: .rounded))
                         .foregroundStyle(adaptiveForeground.opacity(0.78))
                         .lineLimit(drop.subtitleNumberOfLines)
-                        .multilineTextAlignment(.center)
+                        .multilineTextAlignment(.leading)
                 }
             }
+            .fixedSize(horizontal: false, vertical: true)
 
             if let actionIcon = drop.action?.icon {
                 Button {
@@ -799,7 +800,7 @@ private struct LiquidDropsOverlay: View {
                     .fill(.ultraThinMaterial)
             }
         }
-        .fixedSize(horizontal: true, vertical: false)
+        .frame(maxWidth: 380)
         .contentShape(shape)
         .onTapGesture {
             if let action = drop.action, action.icon == nil {
@@ -920,4 +921,21 @@ private struct LiquidDropBubblePreview: View {
             drops.visibility = 1
         }
     }
+}
+
+#Preview("Interactive") {
+	VStack {
+		ScrollView {
+			
+		}
+		
+		Button("Show Long Drop") {
+			LiquidDrops.show(LiquidDrop(title: "Invalid Grade", subtitle: "Only enter a grade range 0-100 or mathematical expression.", subtitleNumberOfLines: 2, icon: UIImage(systemName: "xmark.circle.fill"), position: .top, duration: .seconds(3), animationStyle: .init(coming: .snappy, going: .smooth),effectStyle: .clear, glassTint: .clear))
+		}
+		
+		Button("Show Short Drop") {
+			LiquidDrops.show(LiquidDrop(title: "Invalid Grade", subtitle: "Test.", subtitleNumberOfLines: 2, icon: UIImage(systemName: "xmark.circle.fill"), position: .top, duration: .seconds(3), animationStyle: .init(coming: .snappy, going: .smooth),effectStyle: .clear, glassTint: .clear))
+		}
+	}
+	.liquidDropsHost()
 }
