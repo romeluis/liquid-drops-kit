@@ -1,123 +1,49 @@
 import SwiftUI
-import Combine
 import UIKit
 
+// MARK: - LiquidDrop
+
 @MainActor
-public struct LiquidDrop: Identifiable, ExpressibleByStringLiteral {
+public struct LiquidDrop: Identifiable {
     public init(
         title: String,
-        titleNumberOfLines: Int = 1,
         subtitle: String? = nil,
-        subtitleNumberOfLines: Int = 2,
         icon: UIImage? = nil,
         action: Action? = nil,
-        position: Position = .top,
-        duration: Duration = .seconds(3),
-        animationStyle: AnimationStyle = .init(coming: .snappy, going: .smooth),
-        accessibility: Accessibility? = nil,
+        duration: TimeInterval = 3.0,
         effectStyle: EffectStyle = .regular,
         glassTint: Color? = .clear
     ) {
         let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
         self.id = UUID()
         self.title = trimmedTitle
-        self.titleNumberOfLines = titleNumberOfLines
         if let subtitle {
             let trimmedSubtitle = subtitle.trimmingCharacters(in: .whitespacesAndNewlines)
             self.subtitle = trimmedSubtitle.isEmpty ? nil : trimmedSubtitle
         } else {
             self.subtitle = nil
         }
-        self.subtitleNumberOfLines = subtitleNumberOfLines
         self.icon = icon
         self.action = action
-        self.position = position
         self.duration = duration
-        self.animationStyle = animationStyle
         self.effectStyle = effectStyle
         self.glassTint = glassTint
-        self.accessibility = accessibility
-            ?? .init(message: [trimmedTitle, self.subtitle].compactMap { $0 }.joined(separator: ", "))
-    }
-
-    public init(stringLiteral title: String) {
-        self.init(title: title)
     }
 
     public let id: UUID
-    public var title: String
-    public var titleNumberOfLines: Int
-    public var subtitle: String?
-    public var subtitleNumberOfLines: Int
-    public var icon: UIImage?
-    public var action: Action?
-    public var position: Position
-    public var duration: Duration
-    public var animationStyle: AnimationStyle
-    public var accessibility: Accessibility
-    public var effectStyle: EffectStyle
-    public var glassTint: Color?
-}
-
-public extension LiquidDrop {
-    enum Position: Equatable {
-        case top
-        case bottom
-    }
+    public let title: String
+    public let subtitle: String?
+    public let icon: UIImage?
+    public let action: Action?
+    public let duration: TimeInterval
+    public let effectStyle: EffectStyle
+    public let glassTint: Color?
 }
 
 public extension LiquidDrop {
     enum EffectStyle: Equatable {
         case regular
         case clear
-    }
-}
-
-public extension LiquidDrop {
-    struct AnimationStyle: Equatable {
-        public init(coming: AnimationCurve = .spring, going: AnimationCurve = .easeInOut) {
-            self.coming = coming
-            self.going = going
-        }
-
-        public var coming: AnimationCurve
-        public var going: AnimationCurve
-
-        public static let `default` = Self()
-    }
-}
-
-public extension LiquidDrop {
-    enum AnimationCurve: Equatable {
-        case spring
-        case snappy
-        case bouncy
-        case smooth
-        case easeInOut
-        case linear
-    }
-}
-
-public extension LiquidDrop {
-    enum Duration: Equatable, ExpressibleByFloatLiteral {
-        case recommended
-        case nolimit
-        case seconds(TimeInterval)
-
-        public init(floatLiteral value: TimeInterval) {
-            self = .seconds(value)
-        }
-
-        var value: TimeInterval? {
-            switch self {
-            case .recommended:
-                return 2.0
-            case .nolimit:
-                return nil
-            case let .seconds(custom):
-                return abs(custom)
-            }
-        }
     }
 }
 
@@ -133,24 +59,10 @@ public extension LiquidDrop {
     }
 }
 
-public extension LiquidDrop {
-    struct Accessibility: ExpressibleByStringLiteral {
-        public init(message: String) {
-            self.message = message
-        }
-
-        public init(stringLiteral message: String) {
-            self.message = message
-        }
-
-        public let message: String
-    }
-}
+// MARK: - LiquidDrops
 
 @MainActor
 public final class LiquidDrops: ObservableObject {
-    public typealias DropHandler = (LiquidDrop) -> Void
-
     public static let shared = LiquidDrops()
 
     public static func show(_ drop: LiquidDrop) {
@@ -164,35 +76,6 @@ public final class LiquidDrops: ObservableObject {
     public static func hideAll() {
         shared.hideAll()
     }
-
-    public static var willShowDrop: DropHandler? {
-        get { shared.willShowDrop }
-        set { shared.willShowDrop = newValue }
-    }
-
-    public static var didShowDrop: DropHandler? {
-        get { shared.didShowDrop }
-        set { shared.didShowDrop = newValue }
-    }
-
-    public static var willDismissDrop: DropHandler? {
-        get { shared.willDismissDrop }
-        set { shared.willDismissDrop = newValue }
-    }
-
-    public static var didDismissDrop: DropHandler? {
-        get { shared.didDismissDrop }
-        set { shared.didDismissDrop = newValue }
-    }
-
-    public init(delayBetweenDrops: TimeInterval = 0.5) {
-        self.delayBetweenDrops = delayBetweenDrops
-    }
-
-    public var willShowDrop: DropHandler?
-    public var didShowDrop: DropHandler?
-    public var willDismissDrop: DropHandler?
-    public var didDismissDrop: DropHandler?
 
     @Published fileprivate var currentDrop: LiquidDrop?
     @Published fileprivate var visibility: CGFloat = 0
@@ -212,7 +95,6 @@ public final class LiquidDrops: ObservableObject {
             presentNextIfNeeded()
             return
         }
-
         hide(dropID: currentDrop.id, animated: true, bypassQueueDelay: true)
     }
 
@@ -226,11 +108,16 @@ public final class LiquidDrops: ObservableObject {
         hideCurrent()
     }
 
-    private let delayBetweenDrops: TimeInterval
+    // MARK: Private
 
     private var queue: [LiquidDrop] = []
     private var autoHideTask: Task<Void, Never>?
     private var hideTask: Task<Void, Never>?
+
+    private static let entranceAnimation: Animation = .snappy(duration: 0.4, extraBounce: 0.12)
+    private static let exitAnimation: Animation = .smooth(duration: 0.26)
+    private static let exitDuration: TimeInterval = 0.26
+    private static let delayBetweenDrops: TimeInterval = 0.5
 
     private func presentNextIfNeeded() {
         guard currentDrop == nil, !queue.isEmpty else { return }
@@ -239,23 +126,21 @@ public final class LiquidDrops: ObservableObject {
         currentDrop = next
         visibility = 0
 
-        willShowDrop?(next)
-        withAnimation(animation(forEntrance: next.animationStyle.coming)) {
+        withAnimation(Self.entranceAnimation) {
             visibility = 1
         }
-        didShowDrop?(next)
 
-        UIAccessibility.post(notification: .announcement, argument: next.accessibility.message)
+        let a11yMessage = [next.title, next.subtitle].compactMap { $0 }.joined(separator: ", ")
+        UIAccessibility.post(notification: .announcement, argument: a11yMessage)
         queueAutoHideIfNeeded()
     }
 
     private func queueAutoHideIfNeeded() {
         autoHideTask?.cancel()
         guard let currentDrop else { return }
-        guard let duration = currentDrop.duration.value else { return }
 
         autoHideTask = Task { [weak self] in
-            try? await Task.sleep(for: .seconds(duration))
+            try? await Task.sleep(for: .seconds(currentDrop.duration))
             guard !Task.isCancelled else { return }
             await self?.hide(dropID: currentDrop.id, animated: true)
         }
@@ -267,12 +152,8 @@ public final class LiquidDrops: ObservableObject {
         autoHideTask?.cancel()
         autoHideTask = nil
 
-        willDismissDrop?(currentDrop)
-        let dismissAnimation = animation(forExit: currentDrop.animationStyle.going)
-        let dismissDuration = animationDuration(forExit: currentDrop.animationStyle.going)
-
         if animated {
-            withAnimation(dismissAnimation) {
+            withAnimation(Self.exitAnimation) {
                 visibility = 0
             }
         } else {
@@ -284,70 +165,22 @@ public final class LiquidDrops: ObservableObject {
             guard let self else { return }
 
             if animated {
-                try? await Task.sleep(for: .seconds(dismissDuration + 0.02))
+                try? await Task.sleep(for: .seconds(Self.exitDuration + 0.02))
             }
 
             guard let stillCurrent = self.currentDrop, stillCurrent.id == dropID else { return }
             self.currentDrop = nil
-            self.didDismissDrop?(stillCurrent)
 
             if !bypassQueueDelay {
-                try? await Task.sleep(for: .seconds(self.delayBetweenDrops))
+                try? await Task.sleep(for: .seconds(Self.delayBetweenDrops))
             }
             guard !Task.isCancelled else { return }
             self.presentNextIfNeeded()
         }
     }
-
-    private func animation(forEntrance curve: LiquidDrop.AnimationCurve) -> Animation {
-        switch curve {
-        case .spring:
-            return .spring(duration: 0.72, bounce: 0.15)
-        case .snappy:
-            return .snappy(duration: 0.4, extraBounce: 0.12)
-        case .bouncy:
-            return .bouncy(duration: 0.4, extraBounce: 0.18)
-        case .smooth:
-            return .smooth(duration: 0.45)
-        case .easeInOut:
-            return .easeInOut(duration: 0.45)
-        case .linear:
-            return .linear(duration: 0.42)
-        }
-    }
-
-    private func animation(forExit curve: LiquidDrop.AnimationCurve) -> Animation {
-        switch curve {
-        case .spring:
-            return .spring(duration: 0.32, bounce: 0.05)
-        case .snappy:
-            return .snappy(duration: 0.24, extraBounce: 0)
-        case .bouncy:
-            return .bouncy(duration: 0.34, extraBounce: 0.08)
-        case .smooth:
-            return .smooth(duration: 0.26)
-        case .easeInOut:
-            return .easeInOut(duration: 0.26)
-        case .linear:
-            return .linear(duration: 0.22)
-        }
-    }
-
-    private func animationDuration(forExit curve: LiquidDrop.AnimationCurve) -> TimeInterval {
-        switch curve {
-        case .spring:
-            return 0.32
-        case .snappy:
-            return 0.24
-        case .bouncy:
-            return 0.34
-        case .smooth, .easeInOut:
-            return 0.26
-        case .linear:
-            return 0.22
-        }
-    }
 }
+
+// MARK: - Host Modifier
 
 public extension View {
     func liquidDropsHost() -> some View {
@@ -367,19 +200,24 @@ private struct LiquidDropsHostModifier: ViewModifier {
     }
 }
 
+// MARK: - Overlay
+
 private struct LiquidDropsOverlay: View {
     @Environment(\.colorScheme) private var colorScheme
     @ObservedObject var drops: LiquidDrops
     @State private var dragOffset: CGFloat = 0
     @State private var isGestureDismissing = false
     @State private var islandBeatHapticsTask: Task<Void, Never>?
-    @State private var adaptiveForeground: Color = .primary
-    @State private var topCardBaseSize: CGSize = CGSize(width: 280, height: 56)
+    @State private var cardBaseSize: CGSize = CGSize(width: 280, height: 56)
+
+    private var foregroundColor: Color {
+        colorScheme == .light ? .black : .white
+    }
 
     var body: some View {
         GeometryReader { proxy in
             if let drop = drops.currentDrop {
-                container(for: drop, safeArea: proxy.safeAreaInsets, canvasSize: proxy.size)
+                topContainer(for: drop, safeArea: proxy.safeAreaInsets, canvasSize: proxy.size)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .onChange(of: drop.id) { _, _ in
                         dragOffset = 0
@@ -388,14 +226,7 @@ private struct LiquidDropsOverlay: View {
                         islandBeatHapticsTask = nil
                     }
                     .task(id: drop.id) {
-                        scheduleIslandBeatHaptics(for: drop, canvasSize: proxy.size)
-                        for attempt in 0..<6 {
-                            guard drops.currentDrop?.id == drop.id else { break }
-                            updateAdaptiveForeground(for: drop, safeArea: proxy.safeAreaInsets, canvasSize: proxy.size)
-                            if attempt < 5 {
-                                try? await Task.sleep(for: .milliseconds(120))
-                            }
-                        }
+                        scheduleIslandBeatHaptics(canvasSize: proxy.size, topInset: proxy.safeAreaInsets.top)
                     }
             }
         }
@@ -409,29 +240,31 @@ private struct LiquidDropsOverlay: View {
         }
     }
 
-    @ViewBuilder
-    private func container(for drop: LiquidDrop, safeArea: EdgeInsets, canvasSize: CGSize) -> some View {
-        let topInset = resolvedTopInset(from: safeArea)
-        let bottomInset = resolvedBottomInset(from: safeArea)
-        let t = clamped(drops.visibility, to: 0...1)
+    // MARK: Container
 
-        switch drop.position {
-        case .top:
-            let islandFrame = dynamicIslandFrame(topInset: topInset, canvasWidth: canvasSize.width)
-            let showIslandBeat = shouldShowIslandBeat(canvasSize: canvasSize)
-            ZStack(alignment: .top) {
-                if showIslandBeat {
-                    islandLaunchCapsule(islandFrame: islandFrame, progress: t)
-                }
+    @ViewBuilder
+    private func topContainer(for drop: LiquidDrop, safeArea: EdgeInsets, canvasSize: CGSize) -> some View {
+        let topInset = max(safeArea.top, 44)
+        let t = clamped(drops.visibility, to: 0...1)
+        let hasDynamicIsland = UIDevice.current.userInterfaceIdiom == .phone && topInset >= 54
+        let islandFrame = dynamicIslandFrame(topInset: topInset, canvasWidth: canvasSize.width)
+        let isPortrait = canvasSize.height >= canvasSize.width
+        let showIslandBeat = hasDynamicIsland && isPortrait
+
+        ZStack(alignment: .top) {
+            if showIslandBeat {
+                islandLaunchCapsule(islandFrame: islandFrame, progress: t)
+            }
+
+            if hasDynamicIsland {
                 card(for: drop, cornerRadius: topCornerRadius(for: t, islandFrame: islandFrame))
                     .readSize { size in
                         guard size.width > 0, size.height > 0 else { return }
-                        topCardBaseSize = size
-                        updateAdaptiveForeground(for: drop, safeArea: safeArea, canvasSize: canvasSize)
+                        cardBaseSize = size
                     }
                     .scaleEffect(
-                        x: topScale(for: t, islandFrame: islandFrame, cardSize: topCardBaseSize).width,
-                        y: topScale(for: t, islandFrame: islandFrame, cardSize: topCardBaseSize).height,
+                        x: topScale(for: t, islandFrame: islandFrame, cardSize: cardBaseSize).width,
+                        y: topScale(for: t, islandFrame: islandFrame, cardSize: cardBaseSize).height,
                         anchor: .top
                     )
                     .offset(y: topY(for: t, topInset: topInset, islandFrame: islandFrame) + dragOffset)
@@ -440,36 +273,34 @@ private struct LiquidDropsOverlay: View {
                         radius: 20 * topShadowAmount(for: t),
                         y: 9 * topShadowAmount(for: t)
                     )
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        case .bottom:
-            VStack(spacing: 0) {
-                Spacer(minLength: 0)
+            } else {
+                let restingY = topInset + 8
                 card(for: drop)
                     .readSize { size in
                         guard size.width > 0, size.height > 0 else { return }
-                        topCardBaseSize = size
-                        updateAdaptiveForeground(for: drop, safeArea: safeArea, canvasSize: canvasSize)
+                        cardBaseSize = size
                     }
-                    .padding(.bottom, bottomInset + 8)
-                    .offset(y: lerp(from: 170, to: 0, t: drops.visibility) + dragOffset)
-                    .shadow(color: .black.opacity(0.18), radius: 20, y: 9)
+                    .offset(y: lerp(from: -80, to: restingY, t: t) + dragOffset)
+                    .opacity(Double(t))
+                    .shadow(
+                        color: .black.opacity(0.18 * topShadowAmount(for: t)),
+                        radius: 20 * topShadowAmount(for: t),
+                        y: 9 * topShadowAmount(for: t)
+                    )
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 
-    private func shouldShowIslandBeat(canvasSize: CGSize) -> Bool {
-        let isPhone = UIDevice.current.userInterfaceIdiom == .phone
-        let isPortrait = canvasSize.height >= canvasSize.width
-        return isPhone && isPortrait
-    }
+    // MARK: Island Beat
 
-    private func scheduleIslandBeatHaptics(for drop: LiquidDrop, canvasSize: CGSize) {
+    private func scheduleIslandBeatHaptics(canvasSize: CGSize, topInset: CGFloat) {
         islandBeatHapticsTask?.cancel()
         islandBeatHapticsTask = nil
 
-        guard drop.position == .top else { return }
-        guard shouldShowIslandBeat(canvasSize: canvasSize) else { return }
+        let hasDynamicIsland = UIDevice.current.userInterfaceIdiom == .phone && topInset >= 54
+        let isPortrait = canvasSize.height >= canvasSize.width
+        guard hasDynamicIsland && isPortrait else { return }
 
         islandBeatHapticsTask = Task { @MainActor in
             let first = UIImpactFeedbackGenerator(style: .medium)
@@ -496,35 +327,6 @@ private struct LiquidDropsOverlay: View {
             .allowsHitTesting(false)
     }
 
-    private func resolvedTopInset(from safeArea: EdgeInsets) -> CGFloat {
-        let windowTop = keyWindowSafeAreaInsets.top
-        let statusBarTop = statusBarHeight
-        return max(safeArea.top, windowTop, statusBarTop, 44)
-    }
-
-    private func resolvedBottomInset(from safeArea: EdgeInsets) -> CGFloat {
-        let windowBottom = keyWindowSafeAreaInsets.bottom
-        return max(safeArea.bottom, windowBottom, 0)
-    }
-
-    private var keyWindowSafeAreaInsets: UIEdgeInsets {
-        let windows = UIApplication.shared.connectedScenes
-            .compactMap { $0 as? UIWindowScene }
-            .flatMap(\.windows)
-
-        guard !windows.isEmpty else { return .zero }
-        return windows
-            .map(\.safeAreaInsets)
-            .max { $0.top < $1.top } ?? .zero
-    }
-
-    private var statusBarHeight: CGFloat {
-        UIApplication.shared.connectedScenes
-            .compactMap { $0 as? UIWindowScene }
-            .compactMap { $0.statusBarManager?.statusBarFrame.height }
-            .max() ?? 0
-    }
-
     private func dynamicIslandFrame(topInset: CGFloat, canvasWidth: CGFloat) -> CGRect {
         let isiPhone = UIDevice.current.userInterfaceIdiom == .phone
         let hasLikelyIsland = isiPhone && topInset >= 54
@@ -543,6 +345,43 @@ private struct LiquidDropsOverlay: View {
             height: height
         )
     }
+
+    private func islandBeatScale(for progress: CGFloat) -> CGFloat {
+        let t = clamped(progress, to: 0...1)
+        if t < 0.06 {
+            return 1
+        } else if t < 0.28 {
+            let phase = clamped((t - 0.06) / 0.22, to: 0...1)
+            return 1 + (0.17 * sin(phase * .pi))
+        } else if t < 0.46 {
+            let phase = clamped((t - 0.28) / 0.18, to: 0...1)
+            return 1 + (0.09 * sin(phase * .pi))
+        } else {
+            return 1
+        }
+    }
+
+    private func islandBeatYOffset(for progress: CGFloat) -> CGFloat {
+        let t = clamped(progress, to: 0...1)
+        if t < 0.06 {
+            return 0
+        } else if t < 0.28 {
+            let phase = clamped((t - 0.06) / 0.22, to: 0...1)
+            return -3.2 * sin(phase * .pi)
+        } else if t < 0.46 {
+            let phase = clamped((t - 0.28) / 0.18, to: 0...1)
+            return -1.8 * sin(phase * .pi)
+        } else {
+            return 0
+        }
+    }
+
+    private func islandBeatOpacity(for progress: CGFloat) -> CGFloat {
+        let t = clamped(progress, to: 0...1)
+        return 1 - clamped((t - 0.18) / 0.44, to: 0...1)
+    }
+
+    // MARK: DI Animation Math
 
     private func topScale(for progress: CGFloat, islandFrame: CGRect, cardSize: CGSize) -> CGSize {
         let t = clamped(progress, to: 0...1)
@@ -602,134 +441,7 @@ private struct LiquidDropsOverlay: View {
         clamped((progress - 0.12) / 0.88, to: 0...1)
     }
 
-    private func islandBeatScale(for progress: CGFloat) -> CGFloat {
-        let t = clamped(progress, to: 0...1)
-
-        if t < 0.06 {
-            return 1
-        } else if t < 0.28 {
-            let phase = clamped((t - 0.06) / 0.22, to: 0...1)
-            return 1 + (0.17 * sin(phase * .pi))
-        } else if t < 0.46 {
-            let phase = clamped((t - 0.28) / 0.18, to: 0...1)
-            return 1 + (0.09 * sin(phase * .pi))
-        } else {
-            return 1
-        }
-    }
-
-    private func islandBeatYOffset(for progress: CGFloat) -> CGFloat {
-        let t = clamped(progress, to: 0...1)
-
-        if t < 0.06 {
-            return 0
-        } else if t < 0.28 {
-            let phase = clamped((t - 0.06) / 0.22, to: 0...1)
-            return -3.2 * sin(phase * .pi)
-        } else if t < 0.46 {
-            let phase = clamped((t - 0.28) / 0.18, to: 0...1)
-            return -1.8 * sin(phase * .pi)
-        } else {
-            return 0
-        }
-    }
-
-    private func islandBeatOpacity(for progress: CGFloat) -> CGFloat {
-        let t = clamped(progress, to: 0...1)
-        return 1 - clamped((t - 0.18) / 0.44, to: 0...1)
-    }
-
-    private var keyWindow: UIWindow? {
-        UIApplication.shared.connectedScenes
-            .compactMap { $0 as? UIWindowScene }
-            .flatMap(\.windows)
-            .first(where: \.isKeyWindow)
-    }
-
-    private func updateAdaptiveForeground(for drop: LiquidDrop, safeArea: EdgeInsets, canvasSize: CGSize) {
-        let topInset = resolvedTopInset(from: safeArea)
-        let bottomInset = resolvedBottomInset(from: safeArea)
-
-        let points = adaptiveSamplePoints(
-            for: drop,
-            topInset: topInset,
-            bottomInset: bottomInset,
-            canvasSize: canvasSize
-        )
-        let luminances = points.compactMap(sampleWindowLuminance(at:))
-
-        guard !luminances.isEmpty else {
-            adaptiveForeground = fallbackAdaptiveForeground
-            return
-        }
-
-        let luminance = luminances.reduce(0, +) / CGFloat(luminances.count)
-        let resolvedColor: Color = luminance > 0.58 ? .black : .white
-        withAnimation(.easeInOut(duration: 0.18)) {
-            adaptiveForeground = resolvedColor
-        }
-    }
-
-    private func adaptiveSamplePoints(
-        for drop: LiquidDrop,
-        topInset: CGFloat,
-        bottomInset: CGFloat,
-        canvasSize: CGSize
-    ) -> [CGPoint] {
-        let centerX = canvasSize.width * 0.5
-        let offsetX = min(max(canvasSize.width * 0.18, 24), 52)
-        let estimatedHeight = max(topCardBaseSize.height, drop.subtitle == nil ? 56 : 64)
-
-        let sampleY: CGFloat
-        switch drop.position {
-        case .top:
-            sampleY = topInset + 8 + estimatedHeight + 14
-        case .bottom:
-            sampleY = canvasSize.height - bottomInset - 8 - estimatedHeight - 14
-        }
-
-        return [
-            CGPoint(x: centerX - offsetX, y: sampleY),
-            CGPoint(x: centerX, y: sampleY),
-            CGPoint(x: centerX + offsetX, y: sampleY)
-        ]
-    }
-
-    private var fallbackAdaptiveForeground: Color {
-        colorScheme == .light ? .black : .white
-    }
-
-    private func sampleWindowLuminance(at point: CGPoint) -> CGFloat? {
-        guard let window = keyWindow else { return nil }
-
-        let sampledPoint = CGPoint(
-            x: min(max(point.x, 0), max(window.bounds.width - 1, 0)),
-            y: min(max(point.y, 0), max(window.bounds.height - 1, 0))
-        )
-
-        var pixel = [UInt8](repeating: 0, count: 4)
-        let colorSpace = CGColorSpaceCreateDeviceRGB()
-
-        guard let context = CGContext(
-            data: &pixel,
-            width: 1,
-            height: 1,
-            bitsPerComponent: 8,
-            bytesPerRow: 4,
-            space: colorSpace,
-            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-        ) else {
-            return nil
-        }
-
-        context.translateBy(x: -sampledPoint.x, y: -sampledPoint.y)
-        window.layer.render(in: context)
-
-        let r = CGFloat(pixel[0]) / 255
-        let g = CGFloat(pixel[1]) / 255
-        let b = CGFloat(pixel[2]) / 255
-        return (0.299 * r) + (0.587 * g) + (0.114 * b)
-    }
+    // MARK: Card
 
     private func card(for drop: LiquidDrop, cornerRadius: CGFloat = 24) -> some View {
         let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
@@ -740,21 +452,21 @@ private struct LiquidDropsOverlay: View {
                     .resizable()
                     .scaledToFit()
                     .frame(width: 24, height: 24)
-                    .foregroundStyle(adaptiveForeground)
+                    .foregroundStyle(foregroundColor)
             }
 
             VStack(alignment: .leading, spacing: drop.subtitle == nil ? 0 : 2) {
                 Text(drop.title)
                     .font(.system(size: 16, weight: .semibold, design: .rounded))
-                    .lineLimit(drop.titleNumberOfLines)
+                    .lineLimit(1)
                     .multilineTextAlignment(.leading)
-                    .foregroundStyle(adaptiveForeground)
+                    .foregroundStyle(foregroundColor)
 
                 if let subtitle = drop.subtitle {
                     Text(subtitle)
                         .font(.system(size: 14, weight: .regular, design: .rounded))
-                        .foregroundStyle(adaptiveForeground.opacity(0.78))
-                        .lineLimit(drop.subtitleNumberOfLines)
+                        .foregroundStyle(foregroundColor.opacity(0.78))
+                        .lineLimit(2)
                         .multilineTextAlignment(.leading)
                 }
             }
@@ -770,8 +482,8 @@ private struct LiquidDropsOverlay: View {
                         .scaledToFit()
                         .frame(width: 14, height: 14)
                         .frame(width: 32, height: 32)
-                        .background(adaptiveForeground.opacity(0.16), in: Circle())
-                        .foregroundStyle(adaptiveForeground)
+                        .background(foregroundColor.opacity(0.16), in: Circle())
+                        .foregroundStyle(foregroundColor)
                 }
                 .buttonStyle(.plain)
             }
@@ -807,35 +519,28 @@ private struct LiquidDropsOverlay: View {
                 action.handler()
             }
         }
-        .gesture(dragGesture(for: drop))
+        .gesture(dragGesture())
         .padding(.horizontal, 20)
     }
 
-    private func dragGesture(for drop: LiquidDrop) -> some Gesture {
+    // MARK: Drag Gesture
+
+    private func dragGesture() -> some Gesture {
         DragGesture(minimumDistance: 6)
             .onChanged { value in
                 guard !isGestureDismissing else { return }
                 drops.beginInteraction()
 
-                switch drop.position {
-                case .top:
-                    if value.translation.height < 0 {
-                        if value.translation.height <= -18 {
-                            isGestureDismissing = true
-                            dragOffset = 0
-                            drops.hideCurrent()
-                            return
-                        }
-                        dragOffset = value.translation.height
-                    } else {
-                        dragOffset = value.translation.height * 0.2
+                if value.translation.height < 0 {
+                    if value.translation.height <= -18 {
+                        isGestureDismissing = true
+                        dragOffset = 0
+                        drops.hideCurrent()
+                        return
                     }
-                case .bottom:
-                    if value.translation.height > 0 {
-                        dragOffset = value.translation.height
-                    } else {
-                        dragOffset = value.translation.height * 0.2
-                    }
+                    dragOffset = value.translation.height
+                } else {
+                    dragOffset = value.translation.height * 0.2
                 }
             }
             .onEnded { value in
@@ -843,17 +548,7 @@ private struct LiquidDropsOverlay: View {
                     isGestureDismissing = false
                     return
                 }
-                let projected = value.predictedEndTranslation.height
-                let shouldDismiss: Bool
-
-                switch drop.position {
-                case .top:
-                    shouldDismiss = projected < -78
-                case .bottom:
-                    shouldDismiss = projected > 78
-                }
-
-                if shouldDismiss {
+                if value.predictedEndTranslation.height < -78 {
                     drops.hideCurrent()
                 } else {
                     withAnimation(.spring(duration: 0.34, bounce: 0.2)) {
@@ -864,6 +559,8 @@ private struct LiquidDropsOverlay: View {
             }
     }
 }
+
+// MARK: - Helpers
 
 private func lerp(from: CGFloat, to: CGFloat, t: CGFloat) -> CGFloat {
     from + (to - from) * t
@@ -895,6 +592,8 @@ private extension View {
     }
 }
 
+// MARK: - Previews
+
 #Preview("Bubble") {
     LiquidDropBubblePreview()
 }
@@ -905,14 +604,13 @@ private struct LiquidDropBubblePreview: View {
     private let sampleDrop = LiquidDrop(
         title: "Copied to clipboard",
         subtitle: "Paste anywhere",
-        icon: UIImage(systemName: "doc.on.doc.fill"),
-        glassTint: .clear
+        icon: UIImage(systemName: "doc.on.doc.fill")
     )
 
     var body: some View {
         ZStack {
             Color.white
-            .ignoresSafeArea()
+                .ignoresSafeArea()
 
             LiquidDropsOverlay(drops: drops)
         }
@@ -924,18 +622,16 @@ private struct LiquidDropBubblePreview: View {
 }
 
 #Preview("Interactive") {
-	VStack {
-		ScrollView {
-			
-		}
-		
-		Button("Show Long Drop") {
-			LiquidDrops.show(LiquidDrop(title: "Invalid Grade", subtitle: "Only enter a grade range 0-100 or mathematical expression.", subtitleNumberOfLines: 2, icon: UIImage(systemName: "xmark.circle.fill"), position: .top, duration: .seconds(3), animationStyle: .init(coming: .snappy, going: .smooth),effectStyle: .clear, glassTint: .clear))
-		}
-		
-		Button("Show Short Drop") {
-			LiquidDrops.show(LiquidDrop(title: "Invalid Grade", subtitle: "Test.", subtitleNumberOfLines: 2, icon: UIImage(systemName: "xmark.circle.fill"), position: .top, duration: .seconds(3), animationStyle: .init(coming: .snappy, going: .smooth),effectStyle: .clear, glassTint: .clear))
-		}
-	}
-	.liquidDropsHost()
+    VStack {
+        ScrollView {}
+
+        Button("Show Drop") {
+            LiquidDrops.show(LiquidDrop(
+                title: "Invalid Grade",
+                subtitle: "Only enter a grade range 0-100 or mathematical expression.",
+                icon: UIImage(systemName: "xmark.circle.fill")
+            ))
+        }
+    }
+    .liquidDropsHost()
 }
