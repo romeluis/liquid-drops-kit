@@ -2,6 +2,7 @@ import SwiftUI
 import Combine
 import UIKit
 
+@MainActor
 public struct LiquidDrop: Identifiable, ExpressibleByStringLiteral {
     public init(
         title: String,
@@ -256,7 +257,7 @@ public final class LiquidDrops: ObservableObject {
         autoHideTask = Task { [weak self] in
             try? await Task.sleep(for: .seconds(duration))
             guard !Task.isCancelled else { return }
-            self?.hide(dropID: currentDrop.id, animated: true)
+            await self?.hide(dropID: currentDrop.id, animated: true)
         }
     }
 
