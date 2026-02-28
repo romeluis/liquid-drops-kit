@@ -15,7 +15,7 @@ public struct LiquidDrop: Identifiable, ExpressibleByStringLiteral {
         duration: Duration = .seconds(3),
         animationStyle: AnimationStyle = .init(coming: .snappy, going: .smooth),
         accessibility: Accessibility? = nil,
-        effectStyle: EffectStyle = .clear,
+        effectStyle: EffectStyle = .regular,
         glassTint: Color? = .clear
     ) {
         let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
