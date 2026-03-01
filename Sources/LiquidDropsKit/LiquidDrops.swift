@@ -246,8 +246,8 @@ private struct LiquidDropsOverlay: View {
     private func topContainer(for drop: LiquidDrop, safeArea: EdgeInsets, canvasSize: CGSize) -> some View {
         let topInset = max(safeArea.top, 44)
         let t = clamped(drops.visibility, to: 0...1)
-        let hasDynamicIsland = UIDevice.current.userInterfaceIdiom == .phone && topInset >= 54
         let islandFrame = dynamicIslandFrame(topInset: topInset, canvasWidth: canvasSize.width)
+        let hasDynamicIsland = UIDevice.current.userInterfaceIdiom == .phone && topInset >= 54
         let isPortrait = canvasSize.height >= canvasSize.width
         let showIslandBeat = hasDynamicIsland && isPortrait
 
@@ -256,38 +256,22 @@ private struct LiquidDropsOverlay: View {
                 islandLaunchCapsule(islandFrame: islandFrame, progress: t)
             }
 
-            if hasDynamicIsland {
-                card(for: drop, cornerRadius: topCornerRadius(for: t, islandFrame: islandFrame))
-                    .readSize { size in
-                        guard size.width > 0, size.height > 0 else { return }
-                        cardBaseSize = size
-                    }
-                    .scaleEffect(
-                        x: topScale(for: t, islandFrame: islandFrame, cardSize: cardBaseSize).width,
-                        y: topScale(for: t, islandFrame: islandFrame, cardSize: cardBaseSize).height,
-                        anchor: .top
-                    )
-                    .offset(y: topY(for: t, topInset: topInset, islandFrame: islandFrame) + dragOffset)
-                    .shadow(
-                        color: .black.opacity(0.18 * topShadowAmount(for: t)),
-                        radius: 20 * topShadowAmount(for: t),
-                        y: 9 * topShadowAmount(for: t)
-                    )
-            } else {
-                let restingY = topInset + 8
-                card(for: drop)
-                    .readSize { size in
-                        guard size.width > 0, size.height > 0 else { return }
-                        cardBaseSize = size
-                    }
-                    .offset(y: lerp(from: -80, to: restingY, t: t) + dragOffset)
-                    .opacity(Double(t))
-                    .shadow(
-                        color: .black.opacity(0.18 * topShadowAmount(for: t)),
-                        radius: 20 * topShadowAmount(for: t),
-                        y: 9 * topShadowAmount(for: t)
-                    )
-            }
+            card(for: drop, cornerRadius: topCornerRadius(for: t, islandFrame: islandFrame), visibility: t)
+                .readSize { size in
+                    guard size.width > 0, size.height > 0 else { return }
+                    cardBaseSize = size
+                }
+                .scaleEffect(
+                    x: topScale(for: t, islandFrame: islandFrame, cardSize: cardBaseSize).width,
+                    y: topScale(for: t, islandFrame: islandFrame, cardSize: cardBaseSize).height,
+                    anchor: .top
+                )
+                .offset(y: topY(for: t, topInset: topInset, islandFrame: islandFrame) + dragOffset)
+                .shadow(
+                    color: .black.opacity(0.18 * topShadowAmount(for: t)),
+                    radius: 20 * topShadowAmount(for: t),
+                    y: 9 * topShadowAmount(for: t)
+                )
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
@@ -352,10 +336,10 @@ private struct LiquidDropsOverlay: View {
             return 1
         } else if t < 0.28 {
             let phase = clamped((t - 0.06) / 0.22, to: 0...1)
-            return 1 + (0.17 * sin(phase * .pi))
+            return 1 + (0.22 * sin(phase * .pi))
         } else if t < 0.46 {
             let phase = clamped((t - 0.28) / 0.18, to: 0...1)
-            return 1 + (0.09 * sin(phase * .pi))
+            return 1 + (0.13 * sin(phase * .pi))
         } else {
             return 1
         }
@@ -367,10 +351,10 @@ private struct LiquidDropsOverlay: View {
             return 0
         } else if t < 0.28 {
             let phase = clamped((t - 0.06) / 0.22, to: 0...1)
-            return -3.2 * sin(phase * .pi)
+            return -4.5 * sin(phase * .pi)
         } else if t < 0.46 {
             let phase = clamped((t - 0.28) / 0.18, to: 0...1)
-            return -1.8 * sin(phase * .pi)
+            return -2.6 * sin(phase * .pi)
         } else {
             return 0
         }
@@ -381,7 +365,7 @@ private struct LiquidDropsOverlay: View {
         return 1 - clamped((t - 0.18) / 0.44, to: 0...1)
     }
 
-    // MARK: DI Animation Math
+    // MARK: Scale Animation Math
 
     private func topScale(for progress: CGFloat, islandFrame: CGRect, cardSize: CGSize) -> CGSize {
         let t = clamped(progress, to: 0...1)
@@ -410,8 +394,8 @@ private struct LiquidDropsOverlay: View {
     private func topY(for progress: CGFloat, topInset: CGFloat, islandFrame: CGRect) -> CGFloat {
         let t = clamped(progress, to: 0...1)
         let start = islandFrame.minY
-        let end = topInset + 8
-        let mid = min(end, start + 18)
+        let end = topInset + 16
+        let mid = min(end, start + 22)
         let cutoff: CGFloat = 0.42
 
         if t < cutoff {
@@ -443,8 +427,9 @@ private struct LiquidDropsOverlay: View {
 
     // MARK: Card
 
-    private func card(for drop: LiquidDrop, cornerRadius: CGFloat = 24) -> some View {
+    private func card(for drop: LiquidDrop, cornerRadius: CGFloat = 24, visibility: CGFloat = 1) -> some View {
         let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        let isFullyExpanded = visibility >= 1
         return HStack(spacing: 14) {
             if let icon = drop.icon {
                 Image(uiImage: icon)
@@ -492,20 +477,30 @@ private struct LiquidDropsOverlay: View {
         .padding(.horizontal, 14)
         .background {
             if #available(iOS 26, *) {
-                if drop.effectStyle == .clear {
+                // Use ultraThinMaterial during scale animation, crossfade to glassEffect once expanded.
+                // glassEffect doesn't composite correctly while scaleEffect is active.
+                ZStack {
                     shape
-                        .fill(.clear)
-                        .glassEffect(
-                            .clear.tint((drop.glassTint ?? .cyan).opacity(0.14)),
-                            in: shape
-                        )
-                } else {
-                    shape
-                        .fill(.clear)
-                        .glassEffect(
-                            .regular.tint((drop.glassTint ?? .cyan).opacity(0.2)),
-                            in: shape
-                        )
+                        .fill(.ultraThinMaterial)
+                        .opacity(isFullyExpanded ? 0 : 1)
+
+                    if drop.effectStyle == .clear {
+                        shape
+                            .fill(.clear)
+                            .glassEffect(
+                                .clear.tint((drop.glassTint ?? .cyan).opacity(0.14)),
+                                in: shape
+                            )
+                            .opacity(isFullyExpanded ? 1 : 0)
+                    } else {
+                        shape
+                            .fill(.clear)
+                            .glassEffect(
+                                .regular.tint((drop.glassTint ?? .cyan).opacity(0.2)),
+                                in: shape
+                            )
+                            .opacity(isFullyExpanded ? 1 : 0)
+                    }
                 }
             } else {
                 shape
