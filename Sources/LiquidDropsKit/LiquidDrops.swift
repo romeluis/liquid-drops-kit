@@ -226,7 +226,7 @@ private struct LiquidDropsOverlay: View {
                         islandBeatHapticsTask = nil
                     }
                     .task(id: drop.id) {
-                        scheduleIslandBeatHaptics(canvasSize: proxy.size, topInset: proxy.safeAreaInsets.top)
+                        scheduleIslandBeatHaptics(canvasSize: proxy.size)
                     }
             }
         }
@@ -247,15 +247,8 @@ private struct LiquidDropsOverlay: View {
         let topInset = max(safeArea.top, 44)
         let t = clamped(drops.visibility, to: 0...1)
         let islandFrame = dynamicIslandFrame(topInset: topInset, canvasWidth: canvasSize.width)
-        let hasDynamicIsland = UIDevice.current.userInterfaceIdiom == .phone && topInset >= 54
-        let isPortrait = canvasSize.height >= canvasSize.width
-        let showIslandBeat = hasDynamicIsland && isPortrait
 
         ZStack(alignment: .top) {
-            if showIslandBeat {
-                islandLaunchCapsule(islandFrame: islandFrame, progress: t)
-            }
-
             card(for: drop, cornerRadius: topCornerRadius(for: t, islandFrame: islandFrame), visibility: t)
                 .readSize { size in
                     guard size.width > 0, size.height > 0 else { return }
@@ -278,13 +271,13 @@ private struct LiquidDropsOverlay: View {
 
     // MARK: Island Beat
 
-    private func scheduleIslandBeatHaptics(canvasSize: CGSize, topInset: CGFloat) {
+    private func scheduleIslandBeatHaptics(canvasSize: CGSize) {
         islandBeatHapticsTask?.cancel()
         islandBeatHapticsTask = nil
 
-        let hasDynamicIsland = UIDevice.current.userInterfaceIdiom == .phone && topInset >= 54
+        let isPhone = UIDevice.current.userInterfaceIdiom == .phone
         let isPortrait = canvasSize.height >= canvasSize.width
-        guard hasDynamicIsland && isPortrait else { return }
+        guard isPhone && isPortrait else { return }
 
         islandBeatHapticsTask = Task { @MainActor in
             let first = UIImpactFeedbackGenerator(style: .medium)
@@ -298,17 +291,6 @@ private struct LiquidDropsOverlay: View {
             second.prepare()
             second.impactOccurred(intensity: 0.7)
         }
-    }
-
-    private func islandLaunchCapsule(islandFrame: CGRect, progress: CGFloat) -> some View {
-        let t = clamped(progress, to: 0...1)
-        return Capsule(style: .continuous)
-            .fill(.black)
-            .frame(width: islandFrame.width, height: islandFrame.height)
-            .offset(y: islandFrame.minY + islandBeatYOffset(for: t))
-            .scaleEffect(islandBeatScale(for: t))
-            .opacity(islandBeatOpacity(for: t))
-            .allowsHitTesting(false)
     }
 
     private func dynamicIslandFrame(topInset: CGFloat, canvasWidth: CGFloat) -> CGRect {
@@ -328,41 +310,6 @@ private struct LiquidDropsOverlay: View {
             width: width,
             height: height
         )
-    }
-
-    private func islandBeatScale(for progress: CGFloat) -> CGFloat {
-        let t = clamped(progress, to: 0...1)
-        if t < 0.06 {
-            return 1
-        } else if t < 0.28 {
-            let phase = clamped((t - 0.06) / 0.22, to: 0...1)
-            return 1 + (0.22 * sin(phase * .pi))
-        } else if t < 0.46 {
-            let phase = clamped((t - 0.28) / 0.18, to: 0...1)
-            return 1 + (0.13 * sin(phase * .pi))
-        } else {
-            return 1
-        }
-    }
-
-    private func islandBeatYOffset(for progress: CGFloat) -> CGFloat {
-        let t = clamped(progress, to: 0...1)
-        if t < 0.06 {
-            return 0
-        } else if t < 0.28 {
-            let phase = clamped((t - 0.06) / 0.22, to: 0...1)
-            return -4.5 * sin(phase * .pi)
-        } else if t < 0.46 {
-            let phase = clamped((t - 0.28) / 0.18, to: 0...1)
-            return -2.6 * sin(phase * .pi)
-        } else {
-            return 0
-        }
-    }
-
-    private func islandBeatOpacity(for progress: CGFloat) -> CGFloat {
-        let t = clamped(progress, to: 0...1)
-        return 1 - clamped((t - 0.18) / 0.44, to: 0...1)
     }
 
     // MARK: Scale Animation Math
